@@ -1,9 +1,39 @@
 var _ = require('lodash');
 var Bleacon = require('bleacon');
 var groove = require('groove');
+var osc = require("osc");
 
+// Port listening on 7400
+var udp = new osc.UDPPort({
+    localAddress: "0.0.0.0",
+    localPort: 7400
+});
+
+// Listen for incoming OSC messages.
+udp.on("message", function (oscMsg) {
+    console.log("An OSC message was received!", oscMsg);
+});
+
+var sendOSCMessage = function (address, args) {
+	udp.send({
+        address: address,
+        args: args
+    }, "127.0.0.1", 7500); // Send to python at 7500
+};
+
+udp.on("ready", function () {
+	console.log("Sending test.");
+    sendOSCMessage('/test', ['Sent from js!']);
+});
+
+udp.open();
+
+
+/*
+	Beacon Scanning
+*/
 var uuid = 'b9407f30f5f8466eaff925556b57fe6d';
-Bleacon.startScanning(uuid);
+Bleacon.startScanning(uuid, 27465);
 var beacons = {
 	'12424': {
 			'color': 'lemon', 
@@ -32,7 +62,7 @@ var beacons = {
 			'playlist' : groove.createPlaylist(),
 			'player' : groove.createPlayer()
 		 }
-}
+};
 
 var devices = groove.getDevices();
 var defaultDevice = devices[0];
@@ -41,7 +71,7 @@ var playAudio = function(player, playlist) {
 	player.attach(playlist, function(err){
 		if(err) console.log(err);
 	});
-}
+};
 
 var loadAudio = function() {
 	_.forEach(beacons, function(beacon){
@@ -54,14 +84,14 @@ var loadAudio = function() {
 		beacon.playlist.setGain(0.0);
 		playAudio(beacon.player, beacon.playlist);
 	});
-}
+};
 
 loadAudio();
 
 var setVolume = function(beacon, proximity){
 	var gain = 1.3 - proximity;
 	beacon.playlist.setGain(Math.max(0,gain));
-}
+};
 
 Bleacon.on('discover', function(bleacon) {
 	const AVG_SIZE = 10;
@@ -82,9 +112,9 @@ Bleacon.on('discover', function(bleacon) {
 		var del = newProximity - oldProximity;
 
 		if(Math.abs(del) < PROX_THRESH) setVolume(beacon, newProximity)		
-		// console.log('Gain for ' + beacon.color + ': ' + beacon.playlist.gain);
+		console.log('Gain for ' + beacon.color + ': ' + beacon.playlist.gain);
 
 		beacon.proximity = newProximity;
-		console.log('Found beacon: ' + beacon.color + ' at proximity ' + bleacon.accuracy + 'm away.');
+		//console.log('Found beacon: ' + beacon.color + ' at proximity ' + bleacon.accuracy + 'm away.'); 
 	}
 });
