@@ -63,6 +63,7 @@ class Player:
             self.beacons[self.playing]['player'].audio_set_volume(int(maxGain))
         else:
             self.beacons[self.playing]['mlp'].pause()
+            self.beacons[self.playing]['player'].audio_set_volume(0)
             self.playing = toPlay
             self.beacons[self.playing]['player'].audio_set_volume(int(maxGain))
             self.beacons[self.playing]['mlp'].play()

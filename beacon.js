@@ -64,7 +64,7 @@ var startBeacons = function	() {
 
 	Bleacon.on('discover', function(bleacon) {
 		const AVG_SIZE = 10;
-		const PROX_THRESH = 0.2;
+		const PROX_THRESH = 0.3;
 		const GAIN_DEL = 0.05;
 		const ALPHA = 0.7;
 		var beacon = beacons[bleacon.major];
@@ -76,8 +76,8 @@ var startBeacons = function	() {
 				beacon.proximity_buffer.push(bleacon.accuracy);
 			}
 			var oldProximity = beacon.proximity;
-			var newProximity = _.sum(beacon.proximity_buffer) / beacon.proximity_buffer.length;
-			// var newProximity = (ALPHA * newProximity) + ((1-ALPHA) * oldProximity);
+			// var newProximity = _.sum(beacon.proximity_buffer) / beacon.proximity_buffer.length;
+			var newProximity = (ALPHA * bleacon.accuracy) + ((1-ALPHA) * oldProximity);
 			var del = newProximity - oldProximity;
 
 			if(Math.abs(del) < PROX_THRESH) setVolume(bleacon.major, newProximity);		
