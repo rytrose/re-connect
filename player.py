@@ -17,7 +17,6 @@ class Player:
         self.beaconServer.addMsgHandler("/setGain", self.setGainResponder)
 
         self.beacons = {}
-        self.playing = ''
 
     def sendOSCMessage(self, addr, *msgArgs):
         msg = OSC.OSCMessage()
@@ -39,35 +38,19 @@ class Player:
             mlp.set_playback_mode(vlc.PlaybackMode.loop)
             self.beacons[beacon]['mlp'] = mlp
             self.beacons[beacon]['player'] = player
-            self.playing = beacon
+            self.beacons[beacon]['player'].audio_set_volume(0)
+            
+        self.beacons['27465']['mlp'].play()
 
-        self.beacons[self.playing]['mlp'].play()
-        self.beacons[self.playing]['player'].audio_set_volume(0)
         self.sendOSCMessage("/startBeacons", ["start"])
 
     def setGainResponder(self, addr, tags, stuff, source):
         beacon_major = stuff[0]
         gain = stuff[1]
-        self.beacons[str(int(beacon_major))]['gain'] = gain
-
-        toPlay = ''
-        maxGain = -1
-
-        for major, beacon in self.beacons.iteritems():
-            if beacon['gain'] > maxGain:
-                toPlay = major
-                maxGain = beacon['gain']
-
-        if self.playing == toPlay:
-            print "Gain of " + self.beacons[self.playing]['song'] + ': ' + str(int(maxGain))
-            self.beacons[self.playing]['player'].audio_set_volume(int(maxGain))
-        else:
-            self.beacons[self.playing]['mlp'].pause()
-            self.beacons[self.playing]['player'].audio_set_volume(0)
-            self.playing = toPlay
-            self.beacons[self.playing]['player'].audio_set_volume(int(maxGain))
-            self.beacons[self.playing]['mlp'].play()
-            print "Gain of " + self.beacons[self.playing]['song'] + ': ' + str(int(maxGain))
+        beacon = self.beacons[str(int(beacon_major))]
+        beacon['gain'] = int(round(gain))
+        print "Setting volume of", beacon['color'], "to:", str(beacon['player'].audio_get_volume() + int(round(gain)))
+        beacon['player'].audio_set_volume(beacon['player'].audio_get_volume() + int(round(gain)))
 
 if __name__ == "__main__":
     p = Player()
