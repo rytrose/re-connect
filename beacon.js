@@ -73,6 +73,7 @@ var startBeacons = function	() {
 	Bleacon.on('discover', function(bleacon) {
 		var beacon = beacons[bleacon.major];
 		if(beacon) setProximity(beacon, bleacon);
+		console.log(bleacon.accuracy);
 	});
 }
 

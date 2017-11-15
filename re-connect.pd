@@ -1,0 +1,16 @@
+#N canvas 276 67 1228 899 10;
+#X obj 261 167 oscparse;
+#X obj 261 208 print parse-output;
+#X obj 261 132 netreceive -u -b 5000;
+#X floatatom 477 119 5 0 0 0 - - -, f 5;
+#X obj 577 67 bang;
+#X msg 585 28 pew;
+#X obj 510 267 noteout;
+#X obj 504 194 makenote 100 4000;
+#X connect 0 0 1 0;
+#X connect 2 0 0 0;
+#X connect 3 0 7 0;
+#X connect 4 0 3 0;
+#X connect 5 0 4 0;
+#X connect 7 0 6 0;
+#X connect 7 1 6 1;
