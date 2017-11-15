@@ -27,7 +27,7 @@ var sendOSCMessage = function (address, args) {
     }, "127.0.0.1", 7500); // Send to python at 7500
 };
 
-const ZONE_BUFFER = 3;
+const PLAYING_BUFFER = 3;
 var beacons = {
 		'12424': {
 				'color': 'lemon', 
@@ -35,8 +35,7 @@ var beacons = {
 				'proximity_buffer' : [],
 				'proximity' : 0,
 				'lastDatapoint' : Date.now(),
-				'zones' : [0, 0, 0, ZONE_BUFFER],
-				'zone' : 3
+                'playing' : 0
 			 },
 		'51679': {
 				'color': 'candy', 
@@ -44,8 +43,7 @@ var beacons = {
 				'proximity_buffer' : [],
 				'proximity' : 0,
 				'lastDatapoint' : Date.now(),
-				'zones' : [0, 0, 0, ZONE_BUFFER],
-				'zone' : 3
+                'playing' : 0
 			 },
 		'27465': {
 				'color': 'beetroot', 
@@ -53,12 +51,13 @@ var beacons = {
 				'proximity_buffer' : [],
 				'proximity' : 0,
 				'lastDatapoint' : Date.now(),
-				'zones' : [0, 0, 0, ZONE_BUFFER],
-				'zone' : 3
+                'playing' : 0
 			 }
 	};
 
 sendOSCMessage("/setup", [JSON.stringify(beacons)]);
+
+var playing = undefined;
 
 /*
 	Beacon Scanning
@@ -68,12 +67,11 @@ var startBeacons = function	() {
 
 	var uuid = 'b9407f30f5f8466eaff925556b57fe6d';
 
-	Bleacon.startScanning(uuid, 27465);
+	Bleacon.startScanning(uuid);
 
 	Bleacon.on('discover', function(bleacon) {
 		var beacon = beacons[bleacon.major];
 		if(beacon) setProximity(beacon, bleacon);
-		console.log(bleacon.accuracy);
 	});
 }
 
@@ -102,59 +100,41 @@ var setProximity = function (beacon, bleacon){
 
 	beacon.proximity = newProximity;
 
-	setVolume(bleacon.major, newProximity);
+	checkPlaying();
 }
 
-var setVolume = function (major, newProximity) {
-	const TIMEOUT = 1000; // in milliseconds
-	var zone0 = 0.5;
-	var zone1 = 1.0;
-	var zone2 = 1.5;
-	var beacon = beacons[major];
+var checkPlaying = function () {
+    var closest_prox = Infinity;
+    var closest = undefined;
+    var closest_key = undefined;
+    _.each(beacons, function(beacon, key){
+        if(beacon.proximity < closest_prox && beacon.proximity != 0){
+            closest_prox = beacon.proximity;
+            closest = beacon;
+            closest_key = key;
+        }
+    });
 
-
-	if(beacon.dataTimestamp - Date.now() > TIMEOUT) updateZones(major, beacon, 3);
-	else if(newProximity <= zone0) updateZones(major, beacon, 0);
-	else if(newProximity > zone0 && newProximity <= zone1) updateZones(major, beacon, 1);
-	else if(newProximity > zone1 && newProximity <= zone2) updateZones(major, beacon, 2);
-	else updateZones(major, beacon, 3);
-
-	beacon.dataTimestamp = Date.now();
-}
-
-var updateZones = function(major, beacon, except) {
-	for(var i = 0; i < beacon.zones.length; i++) {
-		if(i != except) beacon.zones[i] = _.max([beacon.zones[i] - 1, 0]);
-		else beacon.zones[i] = _.min([beacon.zones[i] + 1, ZONE_BUFFER]);
-	}
-
-	console.log(major, beacon.zones);
-
-	if(beacon.zones[beacon.zone] == 0) {
-		for(var i = 0; i < beacon.zones.length; i++) {
-			if(beacon.zones[i] == ZONE_BUFFER) {
-				switchZone(major, beacon, i);
-				beacon.zone = i;
-				beacon.zones = [0, 0, 0, 0];
-				beacon.zones[i] = ZONE_BUFFER;
-			}
-		}
-	}
-}
-
-var switchZone = function(major, beacon, zone) {
-	const FADE_TIME = 2000; // in milliseconds
-	const ZONE_VOLUMES = [40, 25, 10, 0];
-	var fade_del = FADE_TIME / Math.abs(ZONE_VOLUMES[beacon.zone] - ZONE_VOLUMES[zone]); 
-	var vol_del = Math.sign(ZONE_VOLUMES[zone] - ZONE_VOLUMES[beacon.zone]);
-
-	var timeout = 0;
-	for(var i = 0; i < (Math.abs(ZONE_VOLUMES[beacon.zone] - ZONE_VOLUMES[zone])); i++){
-		setTimeout(function(){
-			sendOSCMessage("/setGain", [major, vol_del]);
-		}, timeout + fade_del);
-		timeout += fade_del;
-	}
+    if (closest_prox < 1) {
+        if (playing) {
+            if (playing == closest) closest.playing = _.min([closest.playing + 1, PLAYING_BUFFER]);
+            else {
+                playing.playing = _.max([playing.playing - 1, 0]);
+                if (playing.playing == 0) {
+                    closest.playing = PLAYING_BUFFER;
+                    playing = closest;
+                    console.log("Playing " + closest_key);
+                    sendOSCMessage("/playBeacon", [closest_key]);
+                }
+            }
+        }
+        else {
+            closest.playing = PLAYING_BUFFER;
+            playing = closest;
+            console.log("Playing " + closest_key);
+            sendOSCMessage("/playBeacon", [closest_key]);
+        }
+    }
 }
 
 var convertRange = function( value, r1, r2 ) { 

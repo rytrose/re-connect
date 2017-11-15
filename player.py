@@ -17,13 +17,14 @@ class Player:
         self.beaconClient = OSC.OSCClient()
         self.beaconClient.connect(('127.0.0.1', 7400))
         self.beaconServer.addMsgHandler("/setup", self.setupResponder)
-        self.beaconServer.addMsgHandler("/setGain", self.setGainResponder)
+        self.beaconServer.addMsgHandler("/playBeacon", self.playBeaconResponder)
         self.pdClient = OSC.OSCClient()
         self.pdClient.connect(('127.0.0.1', 5000))
 
         self.beacons = {}
+        self.playingBeacon = None
 
-        self.play = False;
+        self.play = False
 
     def sendOSCMessage(self, addr, client=0, *msgArgs):
         msg = OSC.OSCMessage()
@@ -48,20 +49,26 @@ class Player:
             mlp.set_playback_mode(vlc.PlaybackMode.loop)
             self.beacons[beacon]['mlp'] = mlp
             self.beacons[beacon]['player'] = player
-            self.beacons[beacon]['player'].audio_set_volume(20)
-
-        self.beacons['27465']['mlp'].play()
-	self.playGenerative()
+            self.beacons[beacon]['player'].audio_set_volume(40)
 
         self.sendOSCMessage("/startBeacons", 0, ["start"])
 
-    def setGainResponder(self, addr, tags, stuff, source):
+    def playBeaconResponder(self, addr, tags, stuff, source):
         beacon_major = stuff[0]
-        gain = stuff[1]
         beacon = self.beacons[str(int(beacon_major))]
-        beacon['gain'] = int(round(gain))
-        print "Setting volume of", beacon['color'], "to:", str(beacon['player'].audio_get_volume() + int(round(gain)))
-        beacon['player'].audio_set_volume(beacon['player'].audio_get_volume() + int(round(gain)))
+        if self.playingBeacon:
+            print "Stopping beacon " + self.playingBeacon['color']
+            self.playingBeacon['mlp'].pause()
+            self.stopGenerative()
+            self.playingBeacon = beacon
+            print "Playing beacon " + beacon['color']
+            beacon['mlp'].play()
+            self.playGenerative()
+        else:
+            print "Playing beacon " + beacon['color']
+            self.playingBeacon = beacon
+            beacon['mlp'].play()
+            self.playGenerative()
 
     def getWeather(self):
         baseurl = "https://query.yahooapis.com/v1/public/yql?"
