@@ -5,6 +5,7 @@ import json
 import urllib2, urllib
 import random
 import time
+import math
 
 class Player:
     def __init__(self):
@@ -47,9 +48,10 @@ class Player:
             mlp.set_playback_mode(vlc.PlaybackMode.loop)
             self.beacons[beacon]['mlp'] = mlp
             self.beacons[beacon]['player'] = player
-            self.beacons[beacon]['player'].audio_set_volume(10)
+            self.beacons[beacon]['player'].audio_set_volume(20)
 
         self.beacons['27465']['mlp'].play()
+	self.playGenerative()
 
         self.sendOSCMessage("/startBeacons", 0, ["start"])
 
@@ -67,14 +69,15 @@ class Player:
         yql_url = baseurl + urllib.urlencode({'q': yql_query}) + "&format=json"
         result = urllib2.urlopen(yql_url).read()
         data = json.loads(result)
+        timestamp =  time.localtime()
         temp = data['query']['results']['channel']['item']['condition']['temp']
         wind_speed = data['query']['results']['channel']['wind']['speed']
         humidity = data['query']['results']['channel']['atmosphere']['humidity']
-        return temp, wind_speed, humidity
+        return timestamp, temp, wind_speed, humidity
 
     def playGenerative(self):
-        temp, wind_speed, humidity = self.getWeather()
-        self.genThread = GenThread(temp, wind_speed, humidity)
+        timestamp, temp, wind_speed, humidity = self.getWeather()
+        self.genThread = GenThread(timestamp, temp, wind_speed, humidity)
         self.genThread.daemon = True
         self.genThread.start()
 
@@ -82,10 +85,11 @@ class Player:
         self.genThread.stop()
 
 class GenThread(threading.Thread):
-    def __init__(self, temp, wind_speed, humidity):
+    def __init__(self, timestamp, temp, wind_speed, humidity):
         threading.Thread.__init__(self)
         self.pdClient = OSC.OSCClient()
         self.pdClient.connect(('127.0.0.1', 5000))
+        self.timestamp = timestamp
         self.temp = temp
         self.wind_speed = wind_speed
         self.humidity = humidity
@@ -98,15 +102,20 @@ class GenThread(threading.Thread):
         self.pdClient.send(msg)
 
     def run(self):
-        scale = self.getScale(80, 12)
-        speeds = self.getSpeeds(30)
-        # scale = self.getScale(self.temp, self.humidity)
-        # speeds = self.getSpeeds(self.wind_speed)
+        vel_del = (float(1 + self.timestamp.tm_hour + (float(self.timestamp.tm_min + 1) / 60)) / 25) * (math.pi / 8)
+        vel_val = 0
+
+        # scale = self.getScale(20, 13)
+        # speeds = self.getSpeeds(25)
+        scale = self.getScale(self.temp, self.humidity)
+        speeds = self.getSpeeds(self.wind_speed)
 
         while self.play:
+            vel = 40 + (math.sin(vel_val) * 30)
+            vel_val = vel_val + vel_del
             note = random.choice(scale)
             speed = random.choice(speeds)
-            self.sendOSCMessage("/play", note)
+            self.sendOSCMessage("/play", [note, int(vel)])
             time.sleep(speed)
 
     def stop(self):
@@ -144,10 +153,10 @@ class GenThread(threading.Thread):
 
     def getSpeeds(self, wind_speed):
         initial_speed = float(4) / int(wind_speed)
-        speed_del = initial_speed / 20
+        speed_del = initial_speed / 10
         speeds = [initial_speed + (i * speed_del) for i in range(-5, 6)]
         return speeds
 
 if __name__ == "__main__":
     p = Player()
-    p.playGenerative()
+    # p.playGenerative()

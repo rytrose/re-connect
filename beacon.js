@@ -31,7 +31,7 @@ const ZONE_BUFFER = 3;
 var beacons = {
 		'12424': {
 				'color': 'lemon', 
-				'song' : 'birds.mp3',
+				'song' : 'birds.wav',
 				'proximity_buffer' : [],
 				'proximity' : 0,
 				'lastDatapoint' : Date.now(),
@@ -40,7 +40,7 @@ var beacons = {
 			 },
 		'51679': {
 				'color': 'candy', 
-				'song' : 'ocean.mp3',
+				'song' : 'ocean.wav',
 				'proximity_buffer' : [],
 				'proximity' : 0,
 				'lastDatapoint' : Date.now(),
@@ -49,7 +49,7 @@ var beacons = {
 			 },
 		'27465': {
 				'color': 'beetroot', 
-				'song' : 'rain.mp3',
+				'song' : 'rain.wav',
 				'proximity_buffer' : [],
 				'proximity' : 0,
 				'lastDatapoint' : Date.now(),
