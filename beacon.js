@@ -28,6 +28,8 @@ var sendOSCMessage = function (address, args) {
 };
 
 const PLAYING_BUFFER = 3;
+const FADE_TIME = 2000; // in milliseconds
+const ON_VOLUME = 30;
 var beacons = {
 		'12424': {
 				'color': 'lemon', 
@@ -58,6 +60,7 @@ var beacons = {
 sendOSCMessage("/setup", [JSON.stringify(beacons)]);
 
 var playing = undefined;
+var playing_key = undefined;
 
 /*
 	Beacon Scanning
@@ -85,12 +88,12 @@ var setProximity = function (beacon, bleacon){
 		Moving Average Smoothing
 	*/
 	if(beacon.proximity_buffer.length == 0) beacon.proximity_buffer.push(bleacon.accuracy);
-	var newProximity = _.sum(beacon.proximity_buffer) / beacon.proximity_buffer.length;
+	// var newProximity = _.sum(beacon.proximity_buffer) / beacon.proximity_buffer.length;
 	
 	/*
 		Exponential Smoothing
 	*/
-	// var newProximity = (ALPHA * bleacon.accuracy) + ((1-ALPHA) * oldProximity);
+	var newProximity = (ALPHA * bleacon.accuracy) + ((1-ALPHA) * oldProximity);
 
 	if(beacon.proximity_buffer.length < AVG_SIZE && beacon.proximity_buffer.length != 0) beacon.proximity_buffer.push(bleacon.accuracy);
 	else {
@@ -98,6 +101,7 @@ var setProximity = function (beacon, bleacon){
 		beacon.proximity_buffer.push(bleacon.accuracy);
 	}
 
+	beacon.lastDatapoint = Date.now();
 	beacon.proximity = newProximity;
 
 	checkPlaying();
@@ -122,21 +126,77 @@ var checkPlaying = function () {
                 playing.playing = _.max([playing.playing - 1, 0]);
                 if (playing.playing == 0) {
                     closest.playing = PLAYING_BUFFER;
+
+                    // Fade out the previous beacon
+					sendOSCMessage("/stopGenerative", ["stop"]);
+                    fadeVolume(playing_key, "out");
+
+                    // Switch to new playing beacon
                     playing = closest;
-                    console.log("Playing " + closest_key);
-                    sendOSCMessage("/playBeacon", [closest_key]);
+                    playing_key = closest_key;
+
+                    sendOSCMessage("/switchPlayingBeacon", [closest_key]);
+                    setTimeout(function(){
+						console.log("Playing " + closest_key);
+                    	fadeVolume(playing_key, "in");
+					}, FADE_TIME);
+					setTimeout(function(){
+						sendOSCMessage("/playGenerative", ["play"]);
+					}, FADE_TIME * 2);
                 }
             }
         }
         else {
             closest.playing = PLAYING_BUFFER;
             playing = closest;
+            playing_key = closest_key;
             console.log("Playing " + closest_key);
-            sendOSCMessage("/playBeacon", [closest_key]);
+            sendOSCMessage("/switchPlayingBeacon", [closest_key]);
+            fadeVolume(playing_key, "in");
+			setTimeout(function(){
+				sendOSCMessage("/playGenerative", ["play"]);
+			}, FADE_TIME);
         }
     }
 }
 
-var convertRange = function( value, r1, r2 ) { 
-    return ( value - r1[ 0 ] ) * ( r2[ 1 ] - r2[ 0 ] ) / ( r1[ 1 ] - r1[ 0 ] ) + r2[ 0 ];
+var fadeVolume = function(major, direction) {
+	var fade_del = FADE_TIME / (ON_VOLUME - 1);
+	var vol_del;
+	if(direction == "in") vol_del = 1;
+	else vol_del = -1;
+
+	var timeout = 0;
+	for(var i = 0; i < (ON_VOLUME - 1); i++){
+		setTimeout(function(){
+			sendOSCMessage("/setVolume", [major, vol_del]);
+		}, timeout + fade_del);
+		timeout += fade_del;
+	}
 }
+
+var timeoutBeacons = function() {
+    if (playing) {
+        _.each(beacons, function (beacon, key) {
+			if(playing == beacon && (Date.now() - beacon.lastDatapoint) > 10000) stopPlaying(key);
+        });
+    }
+}
+
+var stopPlaying = function(major) {
+	console.log("Stopping " + major + " due to timeout.");
+	playing = undefined;
+	playing_key = undefined;
+	beacons[major].proximity = 0;
+	beacons[major].playing = 0;
+
+	// Fade out the previous beacon
+	sendOSCMessage("/stopGenerative", ["stop"]);
+	fadeVolume(major, "out");
+	setTimeout(function(){
+		sendOSCMessage("/switchPlayingBeacon", ["None"]);
+	}, FADE_TIME);
+}
+
+// Check for timeouts every 500s
+setInterval(timeoutBeacons, 500);
